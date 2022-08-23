@@ -67,11 +67,23 @@ wbDl() {
     echo "Using previously downloaded winbox.exe"
   else
     echo -n "Downloading Winbox..."
-
     URL="https://mt.lv/winbox"
-    if [[ $(uname -a | grep -o "x86_64") ]]; then
-      URL=${URL}64
-    fi
+
+    case $(uname -p) in
+      "x86_64" )
+        URL=${URL}64
+        echo "64bit architecture detected! Using: $URL"
+      ;;
+      *)
+        arches_32bit=("i686" "i586" "i486" "i386")
+        if [[ "$(uname -p)" = "${arches_32bit[*]}" ]] ; then
+          echo "32bit architecture detected! Using: $URL"
+        else
+          echo "Unsupported architecture!"
+          exit 1
+        fi
+      ;;
+    esac
 
     wget -q -c -O winbox.exe $URL
     echo "DONE"
