@@ -59,6 +59,54 @@ depInst() {
   esac
 }
 
+# Checking Wine environment for what prefix exists.
+# Useful if the default prefix is Win32 not Win64.
+# Prepare new prefix if one doesn't exist.
+depCheck() {
+  # Check for WINEPREFIX
+  if [[ -e $WINEPREFIX ]]; then
+    echo "WINEPREFIX found!"
+
+    # Check that prefix isn't empty and determine arch
+    if [[ -d "$WINEPREFIX" ]]; then
+      contentsof_WINEPREFIX=("$(ls "$WINEPREFIX"/drive_c/)")
+
+      # Check if prefix is 32bit
+      case $(printf "%s\n" "${contentsof_WINEPREFIX[@]}") in
+        "Program Files (x86)")
+          echo "64bit"
+        ;;
+      esac
+    fi
+  elif
+    echo "WINEPREFIX not set, checking default directory.."
+    WINEPREFIX="$HOME/.wine"
+    if [[ -e $WINEPREFIX ]]; then
+      if [[ -d "$WINEPREFIX" ]]; then
+        contentsof_WINEPREFIX=("$(ls "$WINEPREFIX"/drive_c/)")
+
+        # Check if prefix is 32bit
+        case $(printf "%s\n" "${contentsof_WINEPREFIX[@]}") in
+          "Program Files (x86)")
+            echo "64bit"
+          ;;
+        esac
+      fi
+    fi
+  else
+    echo "No WINEPREFIX found, creating a new one..."
+    WINEPREFIX="$HOME/.wine"
+  
+    # Double check that $WINEPREFIX is not empty
+    if [[ $(ls -A "$WINEPREFIX") != 0 ]]; then
+      echo "WINEPREFIX is not empty"
+    else
+      echo "WINEPREFIX is empty, running wineboot..."
+      wineboot
+    fi
+  fi
+}
+
 # Downloading latest version of Winbox from Mikrotik's website.
 # The URL of the file is parsed from https://mikrotik.com/download
 wbDl() {
