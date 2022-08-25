@@ -22,8 +22,80 @@ sudo bash winbox-setup remove"
   exit 1
 }
 
+# Checking Wine environment for what prefix exists.
+# Useful if the default prefix is Win32 not Win64.
+# Prepare new prefix if one doesn't exist and keep the arch version in mind in case running on 32bit system.
+depCheck() {
+	# Check for WINEPREFIX
+	chPfx() {
+		# Check if WINEPREFIX is set, if not, set it to the usually default location
+		if [[ -z "${WINEPREFIX}" ]]; then
+			echo "Proceeding, default WINEPREFIX has been determined as: $WINEPREFIX"
+		else
+			echo "No WINEPREFIX defined, using: '$HOME/.wine'"
+			WINEPREFIX="$HOME/.wine"
+		fi
+
+		if [[ -d "$WINEPREFIX" ]]; then
+			contentsof_WINEPREFIX=("$(ls "$WINEPREFIX"/dosdevices/c:/windows/)")
+
+			# Check if WINEPREFIX isn't empty
+			if ! (( ${#contentsof_WINEPREFIX[@]} > 0 )); then
+				echo "WINEPREFIX seems empty"
+				pfxEmpty="true"
+      else
+				# Check if prefix is 32bit
+				case $(printf "%s\n" "${contentsof_WINEPREFIX[@]}") in
+					"syswow64")
+						echo "WINEPREFIX has been determined to be: win64"
+						pfxArch="64"
+					;;
+					*)
+						echo "Assuming WINEPREFIX is win32"
+						pfxArch="32"
+					;;
+				esac
+			fi
+		fi
+	}
+
+	# Determine arch of the system
+	chArch() {
+		case $(uname -p) in
+			"x86_64" )
+				echo "64bit architecture detected!"
+				osArch="64"
+			;;
+			*)
+				osArches_32bit=("i686" "i586" "i486" "i386")
+				if [[ "$(uname -p)" = "${osArches_32bit[*]}" ]]; then
+					echo "32bit architecture detected!"
+					osArch="32"
+				else
+					echo "Unsupported architecture!"
+					exit 1
+				fi
+			;;
+		esac
+	}
+
+	# Create new WINEPREFIX if one was not found
+	mkPfx() {
+		echo "mkPfx stage"
+		echo "using: $WINEPREFIX"
+		chPfx
+		if [[ $pfxEmpty = "true" ]]; then
+			if [[ $osArch = 64 ]]; then
+				echo "placeholder"
+			fi
+			echo "wineboot placeholder"
+		fi
+	}
+}
+
 # Installing dependencies
 depInst() {
+  depCheck
   DISTRIBUTION=`sed "/^ID/s/ID=//gp" -n /etc/os-release`
   echo -n "Wine is not installed. Installing wine and dependencies..."
   case $DISTRIBUTION in
@@ -59,83 +131,24 @@ depInst() {
   esac
 }
 
-# Checking Wine environment for what prefix exists.
-# Useful if the default prefix is Win32 not Win64.
-# Prepare new prefix if one doesn't exist.
-depCheck() {
-  # Check for WINEPREFIX
-  if [[ -e $WINEPREFIX ]]; then
-    echo "WINEPREFIX found!"
-
-    # Check that prefix isn't empty and determine arch
-    if [[ -d "$WINEPREFIX" ]]; then
-      contentsof_WINEPREFIX=("$(ls "$WINEPREFIX"/drive_c/)")
-
-      # Check if prefix is 32bit
-      case $(printf "%s\n" "${contentsof_WINEPREFIX[@]}") in
-        "Program Files (x86)")
-          echo "64bit"
-        ;;
-      esac
-    fi
-  elif
-    echo "WINEPREFIX not set, checking default directory.."
-    WINEPREFIX="$HOME/.wine"
-    if [[ -e $WINEPREFIX ]]; then
-      if [[ -d "$WINEPREFIX" ]]; then
-        contentsof_WINEPREFIX=("$(ls "$WINEPREFIX"/drive_c/)")
-
-        # Check if prefix is 32bit
-        case $(printf "%s\n" "${contentsof_WINEPREFIX[@]}") in
-          "Program Files (x86)")
-            echo "64bit"
-          ;;
-        esac
-      fi
-    fi
-  else
-    echo "No WINEPREFIX found, creating a new one..."
-    WINEPREFIX="$HOME/.wine"
-  
-    # Double check that $WINEPREFIX is not empty
-    if [[ $(ls -A "$WINEPREFIX") != 0 ]]; then
-      echo "WINEPREFIX is not empty"
-    else
-      echo "WINEPREFIX is empty, running wineboot..."
-      wineboot
-    fi
-  fi
-}
-
-# Downloading latest version of Winbox from Mikrotik's website.
-# The URL of the file is parsed from https://mikrotik.com/download
 wbDl() {
-  if [[ -f winbox.exe ]]
-  then
-    echo "Using previously downloaded winbox.exe"
-  else
-    echo -n "Downloading Winbox..."
-    URL="https://mt.lv/winbox"
-
-    case $(uname -p) in
-      "x86_64" )
-        URL=${URL}64
-        echo "64bit architecture detected! Using: $URL"
-      ;;
-      *)
-        arches_32bit=("i686" "i586" "i486" "i386")
-        if [[ "$(uname -p)" = "${arches_32bit[*]}" ]] ; then
-          echo "32bit architecture detected! Using: $URL"
-        else
-          echo "Unsupported architecture!"
-          exit 1
-        fi
-      ;;
-    esac
-
-    wget -q -c -O winbox.exe $URL
-    echo "DONE"
-  fi
+	if [[ -f winbox.exe ]]
+	then
+		echo "Using previously downloaded winbox.exe"
+	else
+		echo -n "Downloading Winbox..."
+		# Set the Download URL
+		case $pfxArch in
+			32)
+				URL="https://mt.lv/winbox"
+			;;
+			64)
+				URL="https://mt.lv/winbox64"
+			;;
+		esac
+		wget -q -c -O winbox.exe $URL
+		echo "DONE"
+	fi
 }
 
 filesCp() {
