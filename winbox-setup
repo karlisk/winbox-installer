@@ -2,10 +2,11 @@
 # Winbox Installer
 # What this script does:
 #   1. Downloading wine, wget and unzip, if not installed on the system
-#   2. Downloading winbox from Mikrotik's download page
-#   3. Copying winbox to /usr/local/bin/ directory
-#   4. Copying icons to /usr/share/icons/hicolor/*/apps
-#   5. Creating launcher for Winbox
+#   2. Preparing a new wine prefix
+#   3. Downloading winbox from Mikrotik's download page
+#   4. Copying winbox to /usr/local/bin/ directory
+#   5. Copying icons to /usr/share/icons/hicolor/*/apps
+#   6. Creating launcher for Winbox
 #
 # Written by Mohammad Riza Nurtam <muhammadriza@gmail.com>
 # version=0.3
@@ -29,8 +30,8 @@ depCheck() {
 	# Check for WINEPREFIX
 	chPfx() {
 		# Check if WINEPREFIX is set, if not, set it to the usually default location
-		if [[ -z "${WINEPREFIX}" ]]; then
-			echo "Proceeding, default WINEPREFIX has been determined as: $WINEPREFIX"
+		if [[ -n "${WINEPREFIX}" ]]; then
+			echo "defined WINEPREFIX found, using: $WINEPREFIX"
 		else
 			echo "No WINEPREFIX defined, using: '$HOME/.wine'"
 			WINEPREFIX="$HOME/.wine"
@@ -51,7 +52,7 @@ depCheck() {
 						pfxArch="64"
 					;;
 					*)
-						echo "Assuming WINEPREFIX is win32"
+						echo "'syswow64' was not found assuming WINEPREFIX is win32"
 						pfxArch="32"
 					;;
 				esac
@@ -77,19 +78,6 @@ depCheck() {
 				fi
 			;;
 		esac
-	}
-
-	# Create new WINEPREFIX if one was not found
-	mkPfx() {
-		echo "mkPfx stage"
-		echo "using: $WINEPREFIX"
-		chPfx
-		if [[ $pfxEmpty = "true" ]]; then
-			if [[ $osArch = 64 ]]; then
-				echo "placeholder"
-			fi
-			echo "wineboot placeholder"
-		fi
 	}
 }
 
@@ -129,6 +117,16 @@ depInst() {
       exit 1
     ;;
   esac
+}
+
+# Create new WINEPREFIX if one was not found
+mkPfx() {
+	if [[ $pfxEmpty = "true" ]]; then
+		if [[ $osArch = 64 ]]; then
+			WINEARCH=win64 wine wineboot
+		fi
+      WINEARCH=win32 wine wineboot
+	fi
 }
 
 wbDl() {
@@ -223,11 +221,17 @@ case $1 in
     then
         depInst
     fi
-    if wbDl
+    if mkPfx
     then
-      if filesCp
+      if wbDl
       then
-        lncCrt
+        if filesCp
+        then
+          lncCrt
+        else
+          echo "FAILED"
+          exit 1
+        fi
       else
         echo "FAILED"
         exit 1
